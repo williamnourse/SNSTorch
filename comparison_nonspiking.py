@@ -12,6 +12,7 @@ num_neurons_pre = 1000
 num_neurons_post = 200
 dt = 0.01
 t_max = 10
+device = 'cuda'
 
 """SNS-Toolbox"""
 net = Network()
@@ -29,27 +30,29 @@ synapse = NonSpikingMatrixConnection(max_conductance=g.numpy(), reversal_potenti
                                      e_hi=np.ones([num_neurons_post,num_neurons_pre]))
 net.add_connection(synapse,'Source','Dest')
 
-model_toolbox = net.compile(dt=dt,backend='torch',device='cuda')
+model_toolbox = net.compile(dt=dt,backend='torch',device=device)
 
 """SNSTorch"""
 class ModelTorch(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, device=None):
         super().__init__()
-        tau_pre = dt / 5.0 * torch.ones(num_neurons_pre)
-        leak_pre = torch.ones(num_neurons_pre)
-        rest_pre = torch.zeros(num_neurons_pre)
-        bias_pre = torch.zeros(num_neurons_pre)
-        init_pre = torch.zeros(num_neurons_pre)
+        if device is None:
+            device = 'cpu'
+        tau_pre = dt / 5.0 * torch.ones(num_neurons_pre,device=device)
+        leak_pre = torch.ones(num_neurons_pre,device=device)
+        rest_pre = torch.zeros(num_neurons_pre,device=device)
+        bias_pre = torch.zeros(num_neurons_pre,device=device)
+        init_pre = torch.zeros(num_neurons_pre,device=device)
 
-        tau_post = dt / 5.0 * torch.ones(num_neurons_post)
-        leak_post = torch.ones(num_neurons_post)
-        rest_post = torch.zeros(num_neurons_post)
-        bias_post = torch.zeros(num_neurons_post)
-        init_post = torch.zeros(num_neurons_post)
+        tau_post = dt / 5.0 * torch.ones(num_neurons_post,device=device)
+        leak_post = torch.ones(num_neurons_post,device=device)
+        rest_post = torch.zeros(num_neurons_post,device=device)
+        bias_post = torch.zeros(num_neurons_post,device=device)
+        init_post = torch.zeros(num_neurons_post,device=device)
 
-        self.pre = NonSpikingLayer(num_neurons_pre, tau_pre, leak_pre, rest_pre, bias_pre, init_pre)
-        self.post = NonSpikingLayer(num_neurons_post, tau_post, leak_post, rest_post, bias_post, init_post)
-        self.synapse = ChemicalSynapse(num_neurons_pre,num_neurons_post, max_conductance=g, reversal=rev)
+        self.pre = NonSpikingLayer(num_neurons_pre, tau_pre, leak_pre, rest_pre, bias_pre, init_pre,device=device)
+        self.post = NonSpikingLayer(num_neurons_post, tau_post, leak_post, rest_post, bias_post, init_post,device=device)
+        self.synapse = ChemicalSynapse(num_neurons_pre,num_neurons_post, max_conductance=g.to(device), reversal=rev.to(device),device=device)
 
     def forward(self, x, state_pre, state_post):
         state_synapse = self.synapse(state_pre,state_post)
@@ -59,14 +62,12 @@ class ModelTorch(torch.nn.Module):
 
 
 """Simulation"""
-model_torch = ModelTorch().to('cuda')
-x = torch.rand(num_neurons_pre)
+model_torch = ModelTorch(device='cpu')
+model_torch = model_torch.to(device)
+x = torch.rand(num_neurons_pre,device=device)
 
 t = np.arange(0, t_max, dt)
-data_toolbox = np.zeros([len(t), num_neurons_pre+num_neurons_post])
-data_torch = torch.zeros([len(t), num_neurons_pre+num_neurons_post]).to('cuda')
-state_pre = model_torch.pre.state_0
-state_post = model_torch.post.state_0
+data_toolbox = torch.zeros([len(t), num_neurons_pre+num_neurons_post]).to(device)
 # Run for all steps
 start = time.time()
 # with torch.no_grad():
@@ -76,8 +77,13 @@ for i in range(len(t)):
     # data_torch[i,:] = state
 end = time.time()
 print('SNS-Toolbox: %f'%(end-start))
+data_toolbox = data_toolbox.to('cpu')
 
-x = x.to('cuda')
+# x = torch.rand([1,num_neurons_pre],device=device)
+data_torch = torch.zeros([len(t), num_neurons_pre+num_neurons_post]).to(device)
+state_pre = model_torch.pre.state_0
+state_post = model_torch.post.state_0
+# x = x.to('cuda')
 start = time.time()
 with torch.no_grad():
     for i in range(len(t)):
@@ -87,9 +93,10 @@ with torch.no_grad():
         data_torch[i,num_neurons_pre:] = state_post
 end = time.time()
 print('SNSTorch: %f'%(end-start))
+
 data_torch = data_torch.to('cpu')
 
-data_toolbox = data_toolbox.transpose()
+data_toolbox = data_toolbox.numpy().transpose()
 data_torch = data_torch.numpy().transpose()
 
 """Comparison"""
