@@ -2,7 +2,8 @@ import numpy as np
 from sns_toolbox.networks import Network
 from sns_toolbox.neurons import NonSpikingNeuron
 from sns_toolbox.connections import NonSpikingMatrixConnection
-from modules import NonSpikingLayer, ChemicalSynapse
+import modules as m
+# from modules import NonSpikingLayer, ChemicalSynapse
 import matplotlib.pyplot as plt
 import torch
 import time
@@ -50,12 +51,14 @@ class ModelTorch(torch.nn.Module):
         bias_post = torch.zeros(num_neurons_post,device=device)
         init_post = torch.zeros(num_neurons_post,device=device)
 
-        self.pre = NonSpikingLayer(num_neurons_pre, tau_pre, leak_pre, rest_pre, bias_pre, init_pre,device=device)
-        self.post = NonSpikingLayer(num_neurons_post, tau_post, leak_post, rest_post, bias_post, init_post,device=device)
-        self.synapse = ChemicalSynapse(num_neurons_pre,num_neurons_post, max_conductance=g.to(device), reversal=rev.to(device),device=device)
+        self.pre = m.NonSpikingLayer(num_neurons_pre, tau_pre, leak_pre, rest_pre, bias_pre, init_pre,device=device)
+        self.post = m.NonSpikingLayer(num_neurons_post, tau_post, leak_post, rest_post, bias_post, init_post,device=device)
+        self.conductance = m.NonSpikingConductance(num_neurons_pre,num_neurons_post, max_conductance=g.to(device),device=device)
+        self.synapse = m.ChemicalSynapse(num_neurons_pre,num_neurons_post, reversal=rev.to(device),device=device)
 
     def forward(self, x, state_pre, state_post):
-        state_synapse = self.synapse(state_pre,state_post)
+        state_conductance = self.conductance(state_pre)
+        state_synapse = self.synapse(state_conductance,state_post)
         state_pre = self.pre(x,state_pre)
         state_post = self.post(state_synapse,state_post)
         return state_pre,state_post
