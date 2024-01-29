@@ -3,7 +3,7 @@ from sns_toolbox.networks import Network
 from sns_toolbox.neurons import NonSpikingNeuron
 from sns_toolbox.connections import NonSpikingMatrixConnection
 import modules as m
-# from modules import NonSpikingLayer, ChemicalSynapse
+# from modules import NonSpikingLayer, ChemicalSynapseLinear
 import matplotlib.pyplot as plt
 import torch
 import time
@@ -54,7 +54,7 @@ class ModelTorch(torch.nn.Module):
         self.pre = m.NonSpikingLayer(num_neurons_pre, tau_pre, leak_pre, rest_pre, bias_pre, init_pre,device=device)
         self.post = m.NonSpikingLayer(num_neurons_post, tau_post, leak_post, rest_post, bias_post, init_post,device=device)
         self.conductance = m.NonSpikingConductance(num_neurons_pre,num_neurons_post, max_conductance=g.to(device),device=device)
-        self.synapse = m.ChemicalSynapse(num_neurons_pre,num_neurons_post, reversal=rev.to(device),device=device)
+        self.synapse = m.ChemicalSynapseLinear(num_neurons_pre, num_neurons_post, reversal=rev.to(device), device=device)
 
     def forward(self, x, state_pre, state_post):
         state_conductance = self.conductance(state_pre)

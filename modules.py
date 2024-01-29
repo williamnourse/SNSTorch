@@ -64,7 +64,7 @@ class NonSpikingConductance(nn.Module):
             conductance = torch.clamp(self.max_conductance,min=0.0) * activated_pre
         return conductance
 
-class ChemicalSynapse(nn.Module):
+class ChemicalSynapseLinear(nn.Module):
     def __init__(self, size_pre, size_post, reversal=None, activation=PiecewiseActivation, device=None):
         super().__init__()
         if device is None:
@@ -85,7 +85,7 @@ class ChemicalSynapse(nn.Module):
         out = left-right
         return out
 
-class ChemicalConv2D(nn.Module):
+class ChemicalSynapseConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, kernel_conductance=None, kernel_reversal=None, stride=1,
                  padding=0, dilation=1, groups=1, padding_mode='zeros', device=None, dtype=None, activation=PiecewiseActivation):
         super().__init__()
@@ -124,13 +124,66 @@ class ChemicalConv2D(nn.Module):
         out = self.conv_left(x) - self.conv_right(x)*state_post
         return out
 
+class ChemicalSynapseConv1d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, kernel_conductance=None, kernel_reversal=None, stride=1,
+                 padding=0, dilation=1, groups=1, padding_mode='zeros', device=None, dtype=None, activation=PiecewiseActivation):
+        super().__init__()
+        self.conv_left = nn.Conv1d(in_channels,out_channels,kernel_size, stride=stride, padding=padding, dilation=dilation,
+                                   groups=groups, padding_mode=padding_mode, bias=False, device=device, dtype=dtype)
+        self.conv_right = nn.Conv1d(in_channels,out_channels,kernel_size, stride=stride, padding=padding, dilation=dilation,
+                                   groups=groups, padding_mode=padding_mode, bias=False, device=device, dtype=dtype)
+        # remove the weights so they don't show up when calling parameters()
+        shape = self.conv_right.weight.shape
+        del self.conv_left.weight
+        del self.conv_right.weight
 
+        if kernel_conductance is None:
+            k_conductance = torch.randn(shape)
+        else:
+            k_conductance = torch.zeros(shape)
+            k_conductance[...] = kernel_conductance
+        if kernel_reversal is None:
+            k_reversal = torch.randn(shape)
+        else:
+            k_reversal = torch.zeros(shape)
+            k_reversal[...] = kernel_reversal
+
+        self.kernel_conductance = nn.Parameter(k_conductance.to(device))
+        self.kernel_reversal = nn.Parameter(k_reversal.to(device))
+        self.conv_left.weight = (torch.clamp(self.kernel_conductance, min=0) * self.kernel_reversal).to(device)
+        self.conv_right.weight = torch.clamp(self.kernel_conductance, min=0)
+        self.act = activation()
+
+    def forward(self,x, state_post):
+        x = self.act(x)
+        if self.training:
+            self.conv_left.weight = torch.clamp(self.kernel_conductance,min=0)*self.kernel_reversal
+            self.conv_right.weight = torch.clamp(self.kernel_conductance,min=0)
+        # print(self.conv_left(x).shape)
+        out = self.conv_left(x) - self.conv_right(x)*state_post
+        return out
+
+class ChemicalSynapseElementwise(nn.Module):
+    def __init__(self, conductance=None, reversal=None, device=None, dtype=torch.float32, activation=PiecewiseActivation):
+        super().__init__()
+        if device is None:
+            device = 'cpu'
+        self.act = activation()
+        if conductance is None:
+            conductance = torch.rand(1, device=device, dtype=dtype)
+        self.conductance = nn.Parameter(conductance.to(device), requires_grad=True)
+        if reversal is None:
+            reversal = torch.rand(1, device=device, dtype=dtype)
+        self.reversal = nn.Parameter(reversal.to(device), requires_grad=True)
+
+    def forward(self, x, state_post):
+        return self.conductance*self.act(x) * (self.reversal - state_post)
 
 # # Example usage
 # rows, cols = 2, 2
 # model = NonSpikingLayer(rows * cols)
 # conductance = NonSpikingConductance(4,2)
-# synapse = ChemicalSynapse(4, 2)
+# synapse = ChemicalSynapseLinear(4, 2)
 #
 # # Example single input
 # input_data_single = torch.randn([rows * cols])
@@ -154,7 +207,7 @@ class ChemicalConv2D(nn.Module):
 # neurons_0 = NonSpikingLayer(layer_shape_0)
 # # act = PiecewiseActivation()
 # neurons_1 = NonSpikingLayer(layer_shape_1)
-# conv = ChemicalConv2D(1,1,kernel_size)
+# conv = ChemicalSynapseConv2d(1,1,kernel_size)
 #
 # print('Input ',input_data)
 # state = neurons_0(input_data)
@@ -172,13 +225,13 @@ class ChemicalConv2D(nn.Module):
 # class SNSCNN(nn.Module):
 #     def __init__(self):
 #         super().__init__()
-#         self.conv0 = ChemicalConv2D(in_channels=1,
+#         self.conv0 = ChemicalSynapseConv2d(in_channels=1,
 #                                       out_channels=16,
 #                                       kernel_size=5,
 #                                       stride=1,
 #                                       padding=2)
 #         self.layer0 = NonSpikingLayer([26, 26])
-#         self.conv1 = ChemicalConv2D(in_channels=1,
+#         self.conv1 = ChemicalSynapseConv2d(in_channels=1,
 #                                       out_channels=16,
 #                                       kernel_size=5,
 #                                       stride=1,
