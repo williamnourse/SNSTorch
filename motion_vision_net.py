@@ -85,6 +85,7 @@ class SNSMotionVisionEye(nn.Module):
         # Detectors
         shape_emd = shape_post_conv - [2,2]
         # On EMD
+        # TODO:
         cond_enhance_on_emd = nn.Parameter()
         # CW
         self.syn_enhance_on_emd_cw_on = m.ChemicalSynapseConv2d(1,1,3, device=device, dtype=dtype)
