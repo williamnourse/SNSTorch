@@ -6,6 +6,7 @@ from snstorch import modules as m
 # from modules import NonSpikingLayer, ChemicalSynapseLinear
 import matplotlib.pyplot as plt
 import torch
+import torch.nn as nn
 import time
 
 """General Parameters"""
@@ -34,31 +35,47 @@ net.add_connection(synapse,'Source','Dest')
 model_toolbox = net.compile(dt=dt,backend='torch',device=device)
 
 """SNSTorch"""
-class ModelTorch(torch.nn.Module):
-    def __init__(self, device=None):
+class ModelTorch(nn.Module):
+    def __init__(self, device=None, dtype=torch.float32):
         super().__init__()
         if device is None:
             device = 'cpu'
-        tau_pre = dt / 5.0 * torch.ones(num_neurons_pre,device=device)
-        leak_pre = torch.ones(num_neurons_pre,device=device)
-        rest_pre = torch.zeros(num_neurons_pre,device=device)
-        bias_pre = torch.zeros(num_neurons_pre,device=device)
-        init_pre = torch.zeros(num_neurons_pre,device=device)
+        params_pre = nn.ParameterDict({
+            'tau': nn.Parameter((dt / 5.0 * torch.ones(num_neurons_pre, dtype=dtype)).to(device)),
+            'leak': nn.Parameter(torch.ones(num_neurons_pre, dtype=dtype).to(device)),
+            'rest': nn.Parameter(torch.zeros(num_neurons_pre, dtype=dtype).to(device)),
+            'bias': nn.Parameter(torch.zeros(num_neurons_pre, dtype=dtype).to(device)),
+            'init': nn.Parameter(torch.zeros(num_neurons_pre, dtype=dtype).to(device))
+        })
+        # tau_pre = dt / 5.0 * torch.ones(num_neurons_pre,device=device)
+        # leak_pre = torch.ones(num_neurons_pre,device=device)
+        # rest_pre = torch.zeros(num_neurons_pre,device=device)
+        # bias_pre = torch.zeros(num_neurons_pre,device=device)
+        # init_pre = torch.zeros(num_neurons_pre,device=device)
+        params_post = nn.ParameterDict({
+            'tau': nn.Parameter((dt / 5.0 * torch.ones(num_neurons_post, dtype=dtype)).to(device)),
+            'leak': nn.Parameter(torch.ones(num_neurons_post, dtype=dtype).to(device)),
+            'rest': nn.Parameter(torch.zeros(num_neurons_post, dtype=dtype).to(device)),
+            'bias': nn.Parameter(torch.zeros(num_neurons_post, dtype=dtype).to(device)),
+            'init': nn.Parameter(torch.zeros(num_neurons_post, dtype=dtype).to(device))
+        })
+        # tau_post = dt / 5.0 * torch.ones(num_neurons_post,device=device)
+        # leak_post = torch.ones(num_neurons_post,device=device)
+        # rest_post = torch.zeros(num_neurons_post,device=device)
+        # bias_post = torch.zeros(num_neurons_post,device=device)
+        # init_post = torch.zeros(num_neurons_post,device=device)
+        params_syn = nn.ParameterDict({
+            'conductance': nn.Parameter(g.to(device)),
+            'reversal': nn.Parameter(rev.to(device))
+        })
 
-        tau_post = dt / 5.0 * torch.ones(num_neurons_post,device=device)
-        leak_post = torch.ones(num_neurons_post,device=device)
-        rest_post = torch.zeros(num_neurons_post,device=device)
-        bias_post = torch.zeros(num_neurons_post,device=device)
-        init_post = torch.zeros(num_neurons_post,device=device)
-
-        self.pre = m.NonSpikingLayer(num_neurons_pre, tau_pre, leak_pre, rest_pre, bias_pre, init_pre,device=device)
-        self.post = m.NonSpikingLayer(num_neurons_post, tau_post, leak_post, rest_post, bias_post, init_post,device=device)
-        self.conductance = m.NonSpikingConductance(num_neurons_pre,num_neurons_post, max_conductance=g.to(device),device=device)
-        self.synapse = m.ChemicalSynapseLinear(num_neurons_pre, num_neurons_post, reversal=rev.to(device), device=device)
+        self.pre = m.NonSpikingLayer(num_neurons_pre, params_pre, device=device)
+        self.post = m.NonSpikingLayer(num_neurons_post, params_post, device=device)
+        self.synapse = m.NonSpikingChemicalSynapseLinear(num_neurons_pre, num_neurons_post, params=params_syn,
+                                                         device=device)
 
     def forward(self, x, state_pre, state_post):
-        state_conductance = self.conductance(state_pre)
-        state_synapse = self.synapse(state_conductance,state_post)
+        state_synapse = self.synapse([state_pre,state_post])
         state_pre = self.pre(x,state_pre)
         state_post = self.post(state_synapse,state_post)
         return state_pre,state_post
@@ -84,8 +101,8 @@ data_toolbox = data_toolbox.to('cpu')
 
 # x = torch.rand([1,num_neurons_pre],device=device)
 data_torch = torch.zeros([len(t), num_neurons_pre+num_neurons_post]).to(device)
-state_pre = model_torch.pre.state_0
-state_post = model_torch.post.state_0
+state_pre = model_torch.pre.params['init']
+state_post = model_torch.post.params['init']
 # x = x.to('cuda')
 start = time.time()
 with torch.no_grad():
