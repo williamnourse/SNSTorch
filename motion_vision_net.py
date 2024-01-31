@@ -1,8 +1,7 @@
-import numpy as np
-import modules as m
+from snstorch import modules as m
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
 
 class SNSBandpass(nn.Module):
     def __init__(self, shape, device=None, dtype=torch.float32):

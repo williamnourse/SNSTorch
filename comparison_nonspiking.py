@@ -2,7 +2,7 @@ import numpy as np
 from sns_toolbox.networks import Network
 from sns_toolbox.neurons import NonSpikingNeuron
 from sns_toolbox.connections import NonSpikingMatrixConnection
-import modules as m
+from snstorch import modules as m
 # from modules import NonSpikingLayer, ChemicalSynapseLinear
 import matplotlib.pyplot as plt
 import torch
