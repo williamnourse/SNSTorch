@@ -82,8 +82,8 @@ class NonSpikingChemicalSynapseConv(nn.Module):
                                groups=groups, padding_mode=padding_mode, bias=False, device=device, dtype=dtype)
         # remove the weights so they don't show up when calling parameters()
         shape = self.conv_right.weight.shape
-        del self.conv_left.weight
-        del self.conv_right.weight
+        # del self.conv_left.weight
+        # del self.conv_right.weight
 
         self.params = nn.ParameterDict({
             'conductance': nn.Parameter(torch.randn(shape, generator=generator, dtype=dtype).to(device)),
@@ -91,34 +91,37 @@ class NonSpikingChemicalSynapseConv(nn.Module):
         })
         if params is not None:
             self.params.update(params)
-        self.conv_left.weight = (torch.clamp(self.params['conductance'], min=0) * self.params['reversal']).to(device)
-        self.conv_right.weight = torch.clamp(self.params['conductance'], min=0)
+        conductance = torch.clamp(self.params['conductance'], min=0)
+        left = torch.zeros(shape, dtype=dtype)
+        right = torch.zeros(shape, dtype=dtype)
+        left[0,0,:,:] = (conductance * self.params['reversal']).to(device)
+        right[0,0,:,:] = conductance
+        self.conv_left.weight.data = nn.Parameter(left)
+        self.conv_right.weight.data = nn.Parameter(right)
         self.act = activation()
 
     def forward(self,x, state_post):
         x = self.act(x)
-        if self.training:
-            self.conv_left.weight = (torch.clamp(self.params['conductance'], min=0) * self.params['reversal'])
-            self.conv_right.weight = torch.clamp(self.params['conductance'], min=0)
+        # if self.training:
+        #     self.conv_left.weight = (torch.clamp(self.params['conductance'], min=0) * self.params['reversal'])
+        #     self.conv_right.weight = torch.clamp(self.params['conductance'], min=0)
         # print(self.conv_left(x).shape)
-        out = self.conv_left(x) - self.conv_right(x)*state_post
+        out = self.conv_left(x.unsqueeze(0).unsqueeze(0)) - self.conv_right(x.unsqueeze(0).unsqueeze(0))*state_post
         return out
 
 class NonSpikingChemicalSynapseElementwise(nn.Module):
-    def __init__(self, conductance=None, reversal=None, device=None, dtype=torch.float32, activation=PiecewiseActivation):
+    def __init__(self, params=None, device=None, dtype=torch.float32, generator=None, activation=PiecewiseActivation):
         super().__init__()
         if device is None:
             device = 'cpu'
         self.act = activation()
-        if conductance is None:
-            conductance = torch.rand(1, device=device, dtype=dtype)
-        self.conductance = nn.Parameter(conductance.to(device), requires_grad=True)
-        if reversal is None:
-            reversal = torch.rand(1, device=device, dtype=dtype)
-        self.reversal = nn.Parameter(reversal.to(device), requires_grad=True)
+        self.params = nn.ParameterDict({
+            'conductance': nn.Parameter(torch.rand(1, device=device, dtype=dtype, generator=generator).to(device)),
+            'reversal': nn.Parameter(2*torch.rand(1, device=device, dtype=dtype, generator=generator).to(device)-1)
+        })
 
     def forward(self, x, state_post):
-        return self.conductance*self.act(x) * (self.reversal - state_post)
+        return self.params['conductance']*self.act(x) * (self.params['reversal'] - state_post)
 
 # # Example usage
 # rows, cols = 2, 2
