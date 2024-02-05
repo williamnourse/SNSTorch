@@ -36,13 +36,13 @@ class PiecewiseActivation(nn.Module):
 
 class NonSpikingChemicalSynapseLinear(nn.Module):
     def __init__(self, size_pre, size_post, params=None, activation=PiecewiseActivation, device=None,
-                 dtype=torch.float32):
+                 dtype=torch.float32, generator=None):
         super().__init__()
         if device is None:
             device = 'cpu'
         self.params = nn.ParameterDict({
-            'conductance': nn.Parameter(torch.rand([size_post,size_pre],dtype=dtype).to(device)),
-            'reversal': nn.Parameter((2*torch.rand([size_post,size_pre])-1).to(device))
+            'conductance': nn.Parameter(torch.rand([size_post,size_pre],dtype=dtype, generator=generator).to(device)),
+            'reversal': nn.Parameter((2*torch.rand([size_post,size_pre], generator=generator)-1).to(device))
         })
         if params is not None:
             self.params.update(params)
