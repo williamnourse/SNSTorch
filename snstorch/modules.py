@@ -92,12 +92,12 @@ class NonSpikingChemicalSynapseConv(nn.Module):
         if params is not None:
             self.params.update(params)
         conductance = torch.clamp(self.params['conductance'], min=0)
-        left = torch.zeros(shape, dtype=dtype)
-        right = torch.zeros(shape, dtype=dtype)
+        left = torch.zeros(shape, dtype=dtype, device=device)
+        right = torch.zeros(shape, dtype=dtype, device=device)
         left[0,0,:,:] = (conductance * self.params['reversal']).to(device)
         right[0,0,:,:] = conductance
-        self.conv_left.weight.data = nn.Parameter(left)
-        self.conv_right.weight.data = nn.Parameter(right)
+        self.conv_left.weight.data = nn.Parameter(left.to(device))
+        self.conv_right.weight.data = nn.Parameter(right.to(device))
         self.act = activation()
 
     def forward(self,x, state_post):
@@ -110,89 +110,17 @@ class NonSpikingChemicalSynapseConv(nn.Module):
         return out
 
 class NonSpikingChemicalSynapseElementwise(nn.Module):
-    def __init__(self, params=None, device=None, dtype=torch.float32, generator=None, activation=PiecewiseActivation):
+    def __init__(self, params=None, device=None, dtype=torch.float32, generator=None, activation=PiecewiseActivation()):
         super().__init__()
         if device is None:
             device = 'cpu'
-        self.act = activation()
+        self.act = activation
         self.params = nn.ParameterDict({
             'conductance': nn.Parameter(torch.rand(1, device=device, dtype=dtype, generator=generator).to(device)),
             'reversal': nn.Parameter(2*torch.rand(1, device=device, dtype=dtype, generator=generator).to(device)-1)
         })
+        if params is not None:
+            self.params.update(params)
 
     def forward(self, x, state_post):
         return self.params['conductance']*self.act(x) * (self.params['reversal'] - state_post)
-
-# # Example usage
-# rows, cols = 2, 2
-# model = NonSpikingLayer(rows * cols)
-# conductance = NonSpikingConductance(4,2)
-# synapse = ChemicalSynapseLinear(4, 2)
-#
-# # Example single input
-# input_data_single = torch.randn([rows * cols])
-# output_single = model(input_data_single)
-# conductance_single = conductance(output_single)
-# synapse_output_single = synapse(conductance_single, model.state_0[:2])
-# print(synapse_output_single)
-#
-# # Example batch input
-# input_data_batch = torch.randn([3, rows * cols])
-# output_batch = model(input_data_batch)
-# state_batch = model.state_0[:2].unsqueeze(0).repeat(3,1)
-# conductance_batch = conductance(output_batch)
-# synapse_output_batch = synapse(conductance_batch, state_batch)
-# print(synapse_output_batch)
-
-# kernel_size = [3,3]
-# layer_shape_0 = [1000,1000]
-# layer_shape_1 = [layer_shape_0[i]-kernel_size[i]+1 for i in range(len(kernel_size))]
-# input_data = torch.randn(layer_shape_0).unsqueeze(0)
-# neurons_0 = NonSpikingLayer(layer_shape_0)
-# # act = PiecewiseActivation()
-# neurons_1 = NonSpikingLayer(layer_shape_1)
-# conv = ChemicalSynapseConv2d(1,1,kernel_size)
-#
-# print('Input ',input_data)
-# state = neurons_0(input_data)
-# print('0 ',state)
-# state = conv(state,neurons_1.state_0)
-# print('1',neurons_1.state_0)
-# print('Convolution Result ', state)
-# print(conv.conv_left.weight)
-# print(conv.conv_right.weight)
-# print(conv.kernel_reversal)
-# print(conv.kernel_conductance)
-# print('Done')
-
-# device = 'cuda'
-# class SNSCNN(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.conv0 = ChemicalSynapseConv2d(in_channels=1,
-#                                       out_channels=16,
-#                                       kernel_size=5,
-#                                       stride=1,
-#                                       padding=2)
-#         self.layer0 = NonSpikingLayer([26, 26])
-#         self.conv1 = ChemicalSynapseConv2d(in_channels=1,
-#                                       out_channels=16,
-#                                       kernel_size=5,
-#                                       stride=1,
-#                                       padding=2)
-#         self.layer1 = NonSpikingLayer([24, 24])
-#         self.out = nn.Sequential(PiecewiseActivation(),
-#                                  nn.LazyLinear(10))
-#
-#     def forward(self, x):
-#         x = self.conv0(x, self.layer0.state_0)
-#         x = self.layer0(x)
-#         x = self.conv1(x, self.layer1.state_0)  # flatten the output of conv2 to (batch_size, 32 * 7 * 7)
-#         # print(x.shape)
-#         x = self.layer1(x)
-#         output = self.out(x)
-#         return output, x  # return x for visualization
-#
-#
-# sns_cnn = SNSCNN().to(device)
-# print(sns_cnn)
