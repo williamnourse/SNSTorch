@@ -4,7 +4,8 @@ import torch.autograd.profiler as profiler
 import torch.jit as jit
 from typing import List
 
-class NonSpikingLayer(jit.ScriptModule):
+
+class NonSpikingLayer(nn.Module):
     def __init__(self, size, params=None, generator=None, device=None, dtype=torch.float32,
                  ):
         super().__init__()
@@ -20,7 +21,7 @@ class NonSpikingLayer(jit.ScriptModule):
         if params is not None:
             self.params.update(params)
 
-    @jit.script_method
+    # @jit.script_method
     def forward(self, x, state):
         # if state is None:
         #     state = self.params['init']
@@ -31,7 +32,8 @@ class NonSpikingLayer(jit.ScriptModule):
         #     state += self.params['tau']*x
         return state
 
-class ClampActivation(jit.ScriptModule):
+
+class ClampActivation(nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -39,13 +41,14 @@ class ClampActivation(jit.ScriptModule):
     def forward(self, x):
         return torch.clamp(x,0,1)
 
-class PiecewiseActivation(jit.ScriptModule):
+
+class PiecewiseActivation(nn.Module):
     def __init__(self, min_val=0, max_val=1):
         super().__init__()
         self.min_val = min_val
         self.inv_range = 1/(max_val-min_val)
 
-    @jit.script_method
+    # @jit.script_method
     def forward(self,x):
         # with profiler.record_function("PIECEWISE SIGMOID"):
             # x -= self.min_val
@@ -55,7 +58,8 @@ class PiecewiseActivation(jit.ScriptModule):
         # return x
         # return torch.clamp((x-self.min_val)/self.range,0,1)
 
-class NonSpikingChemicalSynapseLinear(jit.ScriptModule):
+
+class NonSpikingChemicalSynapseLinear(nn.Module):
     def __init__(self, size_pre, size_post, params=None, activation=ClampActivation, device=None,
                  dtype=torch.float32, generator=None):
         super().__init__()
@@ -69,7 +73,7 @@ class NonSpikingChemicalSynapseLinear(jit.ScriptModule):
             self.params.update(params)
         self.activation = activation()
 
-    @jit.script_method
+    # @jit.script_method
     def forward(self, state_pre, state_post):
         # with profiler.record_function("LINEAR SYNAPSE"):
         activated_pre = self.activation(state_pre)
@@ -86,7 +90,8 @@ class NonSpikingChemicalSynapseLinear(jit.ScriptModule):
         out = left-right
         return out
 
-class NonSpikingChemicalSynapseConv(jit.ScriptModule):
+
+class NonSpikingChemicalSynapseConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, conv_dim=2, params=None, stride=1, padding=0, dilation=1, groups=1,
                  padding_mode='zeros', device=None, dtype=None, activation=ClampActivation, generator=None):
         super().__init__()
@@ -123,14 +128,15 @@ class NonSpikingChemicalSynapseConv(jit.ScriptModule):
         self.conv_right.weight.data = nn.Parameter(right.to(device))
         self.act = activation()
 
-    @jit.script_method
+    # @jit.script_method
     def forward(self,x, state_post):
         # with profiler.record_function("CONV SYNAPSE"):
         x_unsqueezed = self.act(x).unsqueeze(0).unsqueeze(0)
         out = self.conv_left(x_unsqueezed) - self.conv_right(x_unsqueezed)*state_post
         return out
 
-class NonSpikingChemicalSynapseElementwise(jit.ScriptModule):
+
+class NonSpikingChemicalSynapseElementwise(nn.Module):
     def __init__(self, params=None, device=None, dtype=torch.float32, generator=None, activation=ClampActivation()):
         super().__init__()
         if device is None:
@@ -143,7 +149,7 @@ class NonSpikingChemicalSynapseElementwise(jit.ScriptModule):
         if params is not None:
             self.params.update(params)
 
-    @jit.script_method
+    # @jit.script_method
     def forward(self, x, state_post):
         # with profiler.record_function("ELEMENTWISE SYNAPSE"):
         out = self.params['conductance']*self.act(x) * (self.params['reversal'] - state_post)
