@@ -37,7 +37,7 @@ class ClampActivation(nn.Module):
     def __init__(self):
         super().__init__()
 
-    @jit.script_method
+    # @jit.script_method
     def forward(self, x):
         return torch.clamp(x,0,1)
 
@@ -103,7 +103,12 @@ class NonSpikingChemicalSynapseConv(nn.Module):
             conv = nn.Conv3d
         else:
             raise ValueError('Convolution dimension must be 1, 2, or 3')
-
+        if device is None:
+            device = 'cpu'
+        if dtype is None:
+            dtype = torch.float32
+        self.dtype = dtype
+        self.device = device
         self.conv_left = conv(in_channels,out_channels,kernel_size, stride=stride, padding=padding, dilation=dilation,
                               groups=groups, padding_mode=padding_mode, bias=False, device=device, dtype=dtype)
         self.conv_right = conv(in_channels,out_channels,kernel_size, stride=stride, padding=padding, dilation=dilation,
@@ -119,13 +124,8 @@ class NonSpikingChemicalSynapseConv(nn.Module):
         })
         if params is not None:
             self.params.update(params)
-        conductance = torch.clamp(self.params['conductance'], min=0)
-        left = torch.zeros(shape, dtype=dtype, device=device)
-        right = torch.zeros(shape, dtype=dtype, device=device)
-        left[0,0,:,:] = (conductance * self.params['reversal']).to(device)
-        right[0,0,:,:] = conductance
-        self.conv_left.weight.data = nn.Parameter(left.to(device))
-        self.conv_right.weight.data = nn.Parameter(right.to(device))
+        self.setup()
+
         self.act = activation()
 
     # @jit.script_method
@@ -134,6 +134,16 @@ class NonSpikingChemicalSynapseConv(nn.Module):
         x_unsqueezed = self.act(x).unsqueeze(0).unsqueeze(0)
         out = self.conv_left(x_unsqueezed) - self.conv_right(x_unsqueezed)*state_post
         return out
+
+    def setup(self):
+        conductance = torch.clamp(self.params['conductance'], min=0)
+        shape = self.conv_right.weight.shape
+        left = torch.zeros(shape, dtype=self.dtype, device=self.device)
+        right = torch.zeros(shape, dtype=self.dtype, device=self.device)
+        left[0, 0, :, :] = (conductance * self.params['reversal']).to(self.device)
+        right[0, 0, :, :] = conductance
+        self.conv_left.weight.data = nn.Parameter(left.to(self.device), requires_grad=False)
+        self.conv_right.weight.data = nn.Parameter(right.to(self.device), requires_grad=False)
 
 
 class NonSpikingChemicalSynapseElementwise(nn.Module):
