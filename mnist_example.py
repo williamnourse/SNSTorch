@@ -98,9 +98,9 @@ class SNSCNN(nn.Module):
         return output, x  # return x for visualization
 
 def test(model, loaders):
-    # Test the model
+    # Test the model_toolbox
     model.eval()
-    # next(model.parameters()).device
+    # next(model_toolbox.parameters()).device
     with torch.no_grad():
         correct = 0
         total = 0
@@ -114,7 +114,7 @@ def test(model, loaders):
 def train(num_epochs, model, loaders, name, optimizer):
     model.train()
 
-    # Train the model
+    # Train the model_toolbox
     total_step = len(loaders['train'])
     losses = [0]
     accuracy = [0]
