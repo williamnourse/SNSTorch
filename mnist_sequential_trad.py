@@ -3,119 +3,124 @@ from torch import optim
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from torchvision import datasets
-from torchvision.transforms import ToTensor
+import torchvision
+import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import pickle
+from tqdm import tqdm
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-train_data = datasets.MNIST(
-    root='data',
-    train=True,
-    transform=ToTensor(),
-    download=True,
-)
-test_data = datasets.MNIST(
-    root='data',
-    train=False,
-    transform=ToTensor()
-)
-loaders = {'train': torch.utils.data.DataLoader(train_data, batch_size=1, shuffle=True,num_workers=1),
-           'test': torch.utils.data.DataLoader(test_data, batch_size=100, shuffle=True, num_workers=1),}
+BATCH_SIZE = 64
 
-class RNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super().__init__()
-        self.hidden_size = hidden_size
-        self.i2h = nn.Linear(input_size, hidden_size)
-        self.h2h = nn.Linear(hidden_size, hidden_size)
-        self.h2o = nn.Linear(hidden_size, output_size)
+# list all transformations
+transform = transforms.Compose(
+    [transforms.ToTensor()])
 
-    def forward(self, input, hidden):
-        hidden = F.relu(self.i2h(input) + self.h2h(hidden))
-        output = self.h2o(hidden)
-        return output, hidden
+# download and load training dataset
+trainset = torchvision.datasets.MNIST(root='./data', train=True, transform=transform)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True, num_workers=2)
 
-    def initHidden(self):
-        return torch.zeros(1, self.hidden_size)
+# download and load testing dataset
+testset = torchvision.datasets.MNIST(root='./data', train=False, transform=transform)
+testloader = torch.utils.data.DataLoader(testset, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
 
-def test(model, loaders):
-    # Test the model
-    model.eval()
-    # next(model_toolbox.parameters()).device
-    with torch.no_grad():
-        correct = 0
-        total = 0
-        for images, labels in loaders['test']:
-            images = images.to(device)
-            outputs = torch.zeros([len(images), 10])
-            for i in range(len(images)):
-                hidden = model.initHidden().to(device)
-                image = images[i,:,:,:].squeeze()
-                for j in range(image.shape[0]):
-                    # print('%i %i' % (i, j))
-                    output, hidden = model(image[j, :], hidden)
-                outputs[i,:] = output
-            pred_y = torch.max(outputs, 1)[1].data.squeeze()
-            accuracy = (pred_y == labels).sum().item() / float(labels.size(0))
-    return accuracy
-def train(num_epochs, model, loaders, name, optimizer, test_interval, loss_func):
+# parameters
+N_STEPS = 28
+N_INPUTS = 28
+N_NEURONS = 150
+N_OUTPUTS = 10
+N_EPOCHS = 10
+
+
+class ImageRNN(nn.Module):
+    def __init__(self, batch_size, n_steps, n_inputs, n_neurons, n_outputs):
+        super(ImageRNN, self).__init__()
+
+        self.n_neurons = n_neurons
+        self.batch_size = batch_size
+        self.n_steps = n_steps
+        self.n_inputs = n_inputs
+        self.n_outputs = n_outputs
+
+        self.basic_rnn = nn.RNN(self.n_inputs, self.n_neurons)
+
+        self.FC = nn.Linear(self.n_neurons, self.n_outputs)
+
+    def init_hidden(self, ):
+        # (num_layers, batch_size, n_neurons)
+        return (torch.zeros(1, self.batch_size, self.n_neurons))
+
+    def forward(self, X):
+        # transforms X to dimensions: n_steps X batch_size X n_inputs
+        X = X.permute(1, 0, 2)
+
+        self.batch_size = X.size(1)
+        self.hidden = self.init_hidden()
+
+        # rnn_out => n_steps, batch_size, n_neurons (hidden states for each time step)
+        # self.hidden => 1, batch_size, n_neurons (final state from each lstm_out)
+        rnn_out, self.hidden = self.basic_rnn(X, self.hidden)
+        out = self.FC(self.hidden)
+
+        return out.view(-1, self.n_outputs)  # batch_size X n_output
+
+dataiter = iter(trainloader)
+images, labels = next(dataiter)
+model = ImageRNN(BATCH_SIZE, N_STEPS, N_INPUTS, N_NEURONS, N_OUTPUTS)
+logits = model(images.view(-1, 28,28))
+# print(logits[0:10])
+
+# Model instance
+model = ImageRNN(BATCH_SIZE, N_STEPS, N_INPUTS, N_NEURONS, N_OUTPUTS)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+def get_accuracy(logit, target, batch_size):
+    ''' Obtain accuracy for training round '''
+    corrects = (torch.max(logit, 1)[1].view(target.size()).data == target.data).sum()
+    accuracy = 100.0 * corrects/batch_size
+    return accuracy.item()
+
+
+for epoch in range(N_EPOCHS):  # loop over the dataset multiple times
+    train_running_loss = 0.0
+    train_acc = 0.0
     model.train()
 
-    # Train the model
-    total_step = len(loaders['train'])
-    losses = [0]
-    accuracy = [0]
-    test_result = 0
-    for epoch in range(num_epochs):
-        for i, (image, label) in enumerate(loaders['train']):
-            image, label = image.squeeze().to(device), label.to(device)
-            hidden = model.initHidden().to(device)
-            for j in range(image.shape[0]):
-                # print('%i %i'%(i,j))
-                output, hidden = model(image[j,:], hidden)
+    # TRAINING ROUND
+    for i, data in tqdm(enumerate(trainloader)):
+        # print(i)
+        # zero the parameter gradients
+        optimizer.zero_grad()
 
-            loss = loss_func(output, label)
+        # reset hidden states
+        model.hidden = model.init_hidden()
 
-            # clear gradients for this training step
-            optimizer.zero_grad()
+        # get the inputs
+        inputs, labels = data
+        inputs = inputs.view(-1, 28, 28)
 
-            # backpropagation, compute gradients
-            loss.backward()
-            # apply gradients
-            optimizer.step()
+        # forward + backward + optimize
+        outputs = model(inputs)
 
-            if (i + 1) % test_interval == 0:
-                print('{} Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(name, epoch + 1, num_epochs, i + 1, total_step,
-                                                                            loss.item()))
-                test_result = test(model, loaders)
-                print(name + ' Test Accuracy: ' + str(test_result))
-            accuracy.append(test_result)
-            losses.append(loss.item())
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
 
-    return losses, accuracy
+        train_running_loss += loss.detach().item()
+        train_acc += get_accuracy(outputs, labels, BATCH_SIZE)
 
-input_size = 28
-hidden_size = 128
-output_size = 10
-model = RNN(input_size, hidden_size, output_size).to(device)
+    model.eval()
+    print('Epoch:  %d | Loss: %.4f | Train Accuracy: %.2f'
+          % (epoch, train_running_loss / i, train_acc / i))
+    test_acc = 0.0
+    for i, data in enumerate(testloader, 0):
+        inputs, labels = data
+        inputs = inputs.view(-1, 28, 28)
 
-loss_func = nn.CrossEntropyLoss()
-num_epochs = 10
+        outputs = model(inputs)
 
-optim = optim.Adam(model.parameters(), lr = 0.01)
+        test_acc += get_accuracy(outputs, labels, BATCH_SIZE)
 
-test_interval = 100
-loss, accuracy = train(num_epochs, model, loaders, 'RNN', optim, test_interval, loss_func)
-
-data = {'Loss': loss, 'Accuracy': accuracy}
-pickle.dump(data, open('row_MNIST_rnn.p', 'wb'))
-
-plt.figure()
-plt.title('RNN Row-wise MNIST')
-plt.plot(loss, label='Loss')
-plt.plot(accuracy, label='Accuracy')
-plt.legend()
-
-plt.show()
+    print('Test Accuracy: %.2f' % (test_acc / i))
