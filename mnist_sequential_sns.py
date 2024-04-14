@@ -6,11 +6,12 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
+import snstorch.modules as m
 import pickle
 from tqdm import tqdm
 from datetime import datetime
 
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 BATCH_SIZE = 64
 
@@ -51,7 +52,7 @@ class ImageRNN(nn.Module):
 
     def init_hidden(self, ):
         # (num_layers, batch_size, n_neurons)
-        return (torch.zeros(self.batch_size, self.n_neurons, device=device))
+        return (torch.zeros(self.batch_size, self.n_neurons))
 
     def forward(self, X):
         # transforms X to dimensions: n_steps X batch_size X n_inputs
@@ -68,7 +69,6 @@ class ImageRNN(nn.Module):
 
         return out.view(-1, self.n_outputs)  # batch_size X n_output
 
-device = 'cpu'
 dataiter = iter(trainloader)
 images, labels = next(dataiter)
 model = ImageRNN(BATCH_SIZE, N_STEPS, N_INPUTS, N_NEURONS, N_OUTPUTS)
@@ -76,8 +76,7 @@ logits = model(images.view(-1, 28,28))
 # print(logits[0:10])
 
 # Model instance
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = ImageRNN(BATCH_SIZE, N_STEPS, N_INPUTS, N_NEURONS, N_OUTPUTS).to(device)
+model = ImageRNN(BATCH_SIZE, N_STEPS, N_INPUTS, N_NEURONS, N_OUTPUTS)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
@@ -94,7 +93,7 @@ acc_train_history = []
 acc_test_history = []
 # for epoch in range(N_EPOCHS):  # loop over the dataset multiple times
 epoch = 0
-while test_acc > test_acc_last or epoch <= N_EPOCHS:
+while test_acc > test_acc_last:
     train_running_loss = 0.0
     train_acc = 0.0
     model.train()
@@ -110,7 +109,6 @@ while test_acc > test_acc_last or epoch <= N_EPOCHS:
 
         # get the inputs
         inputs, labels = data
-        inputs, labels = inputs.to(device), labels.to(device)
         inputs = inputs.view(-1, 28, 28)
 
         # forward + backward + optimize
@@ -132,7 +130,6 @@ while test_acc > test_acc_last or epoch <= N_EPOCHS:
     test_acc = 0.0
     for i, data in enumerate(testloader, 0):
         inputs, labels = data
-        inputs, labels = inputs.to(device), labels.to(device)
         inputs = inputs.view(-1, 28, 28)
 
         outputs = model(inputs)
