@@ -82,8 +82,11 @@ def get_accuracy(logit, target, batch_size):
     accuracy = 100.0 * corrects/batch_size
     return accuracy.item()
 
-
-for epoch in range(N_EPOCHS):  # loop over the dataset multiple times
+test_acc = 0.0
+test_acc_last = -1.0
+# for epoch in range(N_EPOCHS):  # loop over the dataset multiple times
+epoch = 0
+while test_acc > test_acc_last:
     train_running_loss = 0.0
     train_acc = 0.0
     model.train()
@@ -114,6 +117,7 @@ for epoch in range(N_EPOCHS):  # loop over the dataset multiple times
     model.eval()
     print('Epoch:  %d | Loss: %.4f | Train Accuracy: %.2f'
           % (epoch, train_running_loss / i, train_acc / i))
+    test_acc_last = test_acc
     test_acc = 0.0
     for i, data in enumerate(testloader, 0):
         inputs, labels = data
@@ -122,5 +126,6 @@ for epoch in range(N_EPOCHS):  # loop over the dataset multiple times
         outputs = model(inputs)
 
         test_acc += get_accuracy(outputs, labels, BATCH_SIZE)
+    epoch += 1
 
     print('Test Accuracy: %.2f' % (test_acc / i))
