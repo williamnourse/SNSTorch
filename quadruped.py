@@ -18,6 +18,7 @@ Actions (Torques -1 - 1 N m):
 """
 zeros = np.zeros_like(action)
 for _ in range(1000):
+    action = env.action_space.sample()
     observation, reward, terminated, truncated, info = env.step(action)
 
     if terminated or truncated:
