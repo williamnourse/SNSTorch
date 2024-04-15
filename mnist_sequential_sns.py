@@ -30,7 +30,7 @@ N_STEPS = 28
 N_INPUTS = 28
 N_NEURONS = 128
 N_OUTPUTS = 10
-N_EPOCHS = 10
+N_EPOCHS = 50
 
 class ImageSNS(nn.Module):
     def __init__(self, batch_size, n_steps, n_inputs, n_neurons, n_outputs):
@@ -70,6 +70,12 @@ class ImageSNS(nn.Module):
         # print(out)
         return out.view(-1, self.n_outputs)  # batch_size X n_output
 
+def get_accuracy(logit, target, batch_size):
+    ''' Obtain accuracy for training round '''
+    corrects = (torch.max(logit, 1)[1].view(target.size()).data == target.data).sum()
+    accuracy = 100.0 * corrects/batch_size
+    return accuracy.item()
+
 device = 'cpu'
 dataiter = iter(trainloader)
 images, labels = next(dataiter)
@@ -79,88 +85,84 @@ images, labels = next(dataiter)
 
 # Model instance
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = ImageSNS(BATCH_SIZE, N_STEPS, N_INPUTS, N_NEURONS, N_OUTPUTS).to(device)
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-def get_accuracy(logit, target, batch_size):
-    ''' Obtain accuracy for training round '''
-    corrects = (torch.max(logit, 1)[1].view(target.size()).data == target.data).sum()
-    accuracy = 100.0 * corrects/batch_size
-    return accuracy.item()
+for r in range(5):
+    model = ImageSNS(BATCH_SIZE, N_STEPS, N_INPUTS, N_NEURONS, N_OUTPUTS).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-test_acc = 0.0
-test_acc_last = -1.0
-loss_history = []
-acc_train_history = []
-acc_test_history = []
-# for epoch in range(N_EPOCHS):  # loop over the dataset multiple times
-epoch = 0
-while test_acc > test_acc_last or epoch <= N_EPOCHS:
-    train_running_loss = 0.0
-    train_acc = 0.0
-    model.train()
-
-    # TRAINING ROUND
-    for i, data in enumerate(tqdm(trainloader)):
-        # print(i)
-        # zero the parameter gradients
-        optimizer.zero_grad()
-
-        # get the inputs
-        inputs, labels = data
-        inputs, labels = inputs.to(device), labels.to(device)
-        inputs = inputs.view(-1, 28, 28)
-
-        batch_size = inputs.size(0)
-        # reset hidden states
-        model.state = model.init_hidden(batch_size)
-        model.h2h.setup()
-
-        # forward + backward + optimize
-        outputs = model(inputs)
-
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-
-        train_running_loss += loss.detach().item()
-        train_acc += get_accuracy(outputs, labels, BATCH_SIZE)
-
-    model.eval()
-    print('Epoch:  %d | Loss: %.4f | Train Accuracy: %.2f'
-          % (epoch, train_running_loss / i, train_acc / i))
-    loss_history.extend([train_running_loss/i])
-    acc_train_history.extend([train_acc/i])
-    test_acc_last = test_acc
     test_acc = 0.0
-    model.h2h.setup()
-    for i, data in enumerate(testloader, 0):
-        inputs, labels = data
-        inputs, labels = inputs.to(device), labels.to(device)
-        inputs = inputs.view(-1, 28, 28)
-        batch_size = inputs.size(0)
-        model.state = model.init_hidden(batch_size)
+    test_acc_last = -1.0
+    loss_history = []
+    acc_train_history = []
+    acc_test_history = []
+    # for epoch in range(N_EPOCHS):  # loop over the dataset multiple times
+    epoch = 0
+    while test_acc > test_acc_last or epoch <= N_EPOCHS:
+        train_running_loss = 0.0
+        train_acc = 0.0
+        model.train()
 
-        outputs = model(inputs)
+        # TRAINING ROUND
+        for i, data in enumerate(tqdm(trainloader)):
+            # print(i)
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-        test_acc += get_accuracy(outputs, labels, BATCH_SIZE)
-    acc_test_history.extend([test_acc/i])
-    epoch += 1
+            # get the inputs
+            inputs, labels = data
+            inputs, labels = inputs.to(device), labels.to(device)
+            inputs = inputs.view(-1, 28, 28)
 
-    print('Test Accuracy: %.2f' % (test_acc / i))
+            batch_size = inputs.size(0)
+            # reset hidden states
+            model.state = model.init_hidden(batch_size)
+            model.h2h.setup()
 
-save_data = {'loss': loss_history, 'accTrain': acc_train_history, 'accTest': acc_test_history}
-pickle.dump(save_data, open('SNS-'+datetime.now().strftime('%d-%m-%Y-%H-%M-%S')+'.p', 'wb'))
+            # forward + backward + optimize
+            outputs = model(inputs)
 
-plt.figure()
-plt.subplot(2,1,1)
-plt.plot(loss_history)
-plt.title('Training Loss')
-plt.subplot(2,1,2)
-plt.plot(acc_train_history, label='Training Accuracy')
-plt.plot(acc_test_history, label='Test Accuracy')
-plt.title('Accuracy')
-plt.xlabel('Epoch')
-plt.legend()
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            train_running_loss += loss.detach().item()
+            train_acc += get_accuracy(outputs, labels, BATCH_SIZE)
+
+        model.eval()
+        print('Run: %i | Epoch:  %d | Loss: %.4f | Train Accuracy: %.2f'
+              % (r, epoch, train_running_loss / i, train_acc / i))
+        loss_history.extend([train_running_loss/i])
+        acc_train_history.extend([train_acc/i])
+        test_acc_last = test_acc
+        test_acc = 0.0
+        model.h2h.setup()
+        for i, data in enumerate(testloader, 0):
+            inputs, labels = data
+            inputs, labels = inputs.to(device), labels.to(device)
+            inputs = inputs.view(-1, 28, 28)
+            batch_size = inputs.size(0)
+            model.state = model.init_hidden(batch_size)
+
+            outputs = model(inputs)
+
+            test_acc += get_accuracy(outputs, labels, BATCH_SIZE)
+        acc_test_history.extend([test_acc/i])
+        epoch += 1
+
+        print('Test Accuracy: %.2f' % (test_acc / i))
+
+    save_data = {'loss': loss_history, 'accTrain': acc_train_history, 'accTest': acc_test_history}
+    pickle.dump(save_data, open('SNS-'+datetime.now().strftime('%d-%m-%Y-%H-%M-%S')+'.p', 'wb'))
+
+    plt.figure()
+    plt.subplot(2,1,1)
+    plt.plot(loss_history)
+    plt.title('Training Loss')
+    plt.subplot(2,1,2)
+    plt.plot(acc_train_history, label='Training Accuracy')
+    plt.plot(acc_test_history, label='Test Accuracy')
+    plt.title('Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend()
 plt.show()
