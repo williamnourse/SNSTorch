@@ -12,7 +12,7 @@ class NonSpikingLayer(nn.Module):
         if device is None:
             device = 'cpu'
         self.params = nn.ParameterDict({
-            'tau': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device)),
+            'tau': nn.Parameter(0.5*torch.rand(size, dtype=dtype, generator=generator).to(device)),
             'leak': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device)),
             'rest': nn.Parameter(torch.zeros(size, dtype=dtype).to(device)),
             'bias': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device)),
@@ -66,8 +66,8 @@ class NonSpikingChemicalSynapseLinear(nn.Module):
         if device is None:
             device = 'cpu'
         self.params = nn.ParameterDict({
-            'conductance': nn.Parameter(torch.rand([size_post,size_pre],dtype=dtype, generator=generator).to(device)),
-            'reversal': nn.Parameter((2*torch.rand([size_post,size_pre], generator=generator)-1).to(device))
+            'conductance': nn.Parameter((1/size_pre)*torch.rand([size_post,size_pre],dtype=dtype, generator=generator).to(device)),
+            'reversal': nn.Parameter((4*torch.rand([size_post,size_pre], generator=generator)-2).to(device))
         })
         if params is not None:
             self.params.update(params)
@@ -89,6 +89,9 @@ class NonSpikingChemicalSynapseLinear(nn.Module):
             right = state_post*torch.sum(conductance,dim=1)
         out = left-right
         return out
+
+    def setup(self):
+        self.params['conductance'] = torch.clamp(self.params['conductance'], min=0)
 
 
 class NonSpikingChemicalSynapseConv(nn.Module):
