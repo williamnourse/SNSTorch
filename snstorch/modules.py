@@ -134,8 +134,12 @@ class NonSpikingChemicalSynapseConv(nn.Module):
     # @jit.script_method
     def forward(self,x, state_post):
         # with profiler.record_function("CONV SYNAPSE"):
-        x_unsqueezed = self.act(x).unsqueeze(0).unsqueeze(0)
-        out = self.conv_left(x_unsqueezed) - self.conv_right(x_unsqueezed)*state_post
+        if len(x.shape)==2:
+            x_unsqueezed = self.act(x).unsqueeze(0).unsqueeze(0)
+        elif len(x.shape)==3:
+            x_unsqueezed = self.act(x).unsqueeze(0)
+            x_unsqueezed = x_unsqueezed.permute(1,0,2,3)
+        out = self.conv_left(x_unsqueezed).squeeze() - self.conv_right(x_unsqueezed).squeeze()*state_post
         return out
 
     def setup(self):
