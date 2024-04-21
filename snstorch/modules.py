@@ -171,3 +171,6 @@ class NonSpikingChemicalSynapseElementwise(nn.Module):
         # with profiler.record_function("ELEMENTWISE SYNAPSE"):
         out = self.params['conductance']*self.act(x) * (self.params['reversal'] - state_post)
         return out
+
+    def setup(self):
+        self.params['conductance'] = torch.clamp(self.params['conductance'], min=0)
