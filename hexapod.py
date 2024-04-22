@@ -41,7 +41,9 @@ XML=r"""
     <body name="torso" pos="0 0 0.75">
       <camera name="track" mode="trackcom" pos="0 -3 0.3" xyaxes="1 0 0 0 0 1"/>
       <geom name="torso_geom" fromto="-1.0 0.0 0.0 1.0 0.0 0.0" size="0.15" type="capsule" density="100"/>
-      <joint armature="0" damping="0" limited="false" margin="0.01" name="root" pos="0 0 0" type="free"/>
+      <joint armature="0" axis="1 0 0" damping="0" limited="false" name="rootx" pos="0 0 0" stiffness="0" type="slide"/>
+      <joint armature="0" axis="0 0 1" damping="0" limited="false" name="rootz" pos="0 0 0" stiffness="0" type="slide"/>
+      <joint armature="0" axis="0 1 0" damping="0" limited="false" name="rooty" pos="0 0 0" stiffness="0" type="hinge"/>
       <body name="front_left_leg" pos="-0.9 0 0">
         <geom fromto="0.0 0.0 0.0 0.0 -0.2 0.0" name="aux_0_geom" size="0.08" type="capsule"/>
         <body name="aux_0" pos="0.0 -0.2 0">
@@ -144,18 +146,18 @@ model = mujoco.MjModel.from_xml_string(XML,{})
 data = mujoco.MjData(model)
 # for i in range(len(data.qpos)):
 #   print(mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, i))
-hip_0_id = model.joint('hip_0').id+6
-hip_1_id = model.joint('hip_1').id+6
-hip_2_id = model.joint('hip_2').id+6
-hip_3_id = model.joint('hip_3').id+6
-hip_4_id = model.joint('hip_4').id+6
-hip_5_id = model.joint('hip_5').id+6
-knee_0_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_0')+6
-knee_1_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_1')+6
-knee_2_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_2')+6
-knee_3_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_3')+6
-knee_4_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_4')+6
-knee_5_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_5')+6
+hip_0_id = model.joint('hip_0').id
+hip_1_id = model.joint('hip_1').id
+hip_2_id = model.joint('hip_2').id
+hip_3_id = model.joint('hip_3').id
+hip_4_id = model.joint('hip_4').id
+hip_5_id = model.joint('hip_5').id
+knee_0_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_0')
+knee_1_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_1')
+knee_2_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_2')
+knee_3_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_3')
+knee_4_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_4')
+knee_5_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, 'knee_5')
 hip_angles = [hip_0_id, hip_1_id, hip_2_id, hip_3_id, hip_4_id, hip_5_id]
 knee_angles = [knee_0_id, knee_1_id, knee_2_id, knee_3_id, knee_4_id, knee_5_id]
 
