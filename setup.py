@@ -8,7 +8,7 @@ def readme_file_contents():
 
 setup(
     name='snstorch',
-    version='0.1.2',
+    version='0.1.3',
     packages=find_packages(),
     url='https://github.com/wnourse05/SNSTorch',
     license='Apache v2.0',
