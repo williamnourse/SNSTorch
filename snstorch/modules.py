@@ -139,6 +139,9 @@ class NonSpikingChemicalSynapseConv(nn.Module):
         elif len(x.shape)==3:
             x_unsqueezed = self.act(x).unsqueeze(0)
             x_unsqueezed = x_unsqueezed.permute(1,0,2,3)
+        else:
+            x_unsqueezed = self.act(x)
+            # x_unsqueezed = x_unsqueezed.permute(1,0,2,3)
         out = self.conv_left(x_unsqueezed).squeeze() - self.conv_right(x_unsqueezed).squeeze()*state_post
         return out
 
@@ -147,8 +150,8 @@ class NonSpikingChemicalSynapseConv(nn.Module):
         shape = self.conv_right.weight.shape
         left = torch.zeros(shape, dtype=self.dtype, device=self.device)
         right = torch.zeros(shape, dtype=self.dtype, device=self.device)
-        left[0, 0, :, :] = (conductance * self.params['reversal']).to(self.device)
-        right[0, 0, :, :] = conductance
+        left = (conductance * self.params['reversal']).to(self.device)
+        right = conductance
         self.conv_left.weight.data = nn.Parameter(left.to(self.device), requires_grad=False)
         self.conv_right.weight.data = nn.Parameter(right.to(self.device), requires_grad=False)
 
