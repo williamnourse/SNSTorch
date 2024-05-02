@@ -118,11 +118,12 @@ class NonSpikingChemicalSynapseConv(nn.Module):
                                groups=groups, padding_mode=padding_mode, bias=False, device=device, dtype=dtype)
         # remove the weights so they don't show up when calling parameters()
         shape = self.conv_right.weight.shape
+        shape_flat = len(self.conv_right.weight.flatten())
         # del self.conv_left.weight
         # del self.conv_right.weight
 
         self.params = nn.ParameterDict({
-            'conductance': nn.Parameter(torch.randn(shape, generator=generator, dtype=dtype).to(device)),
+            'conductance': nn.Parameter(1/shape_flat*torch.randn(shape, generator=generator, dtype=dtype).to(device)),
             'reversal': nn.Parameter((2*torch.randn(shape, generator=generator, dtype=dtype)-1).to(device))
         })
         if params is not None:
