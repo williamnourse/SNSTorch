@@ -151,8 +151,8 @@ class NonSpikingChemicalSynapseConv(nn.Module):
         shape = self.conv_right.weight.shape
         left = torch.zeros(shape, dtype=self.dtype, device=self.device)
         right = torch.zeros(shape, dtype=self.dtype, device=self.device)
-        left = (conductance * self.params['reversal']).to(self.device)
-        right = conductance
+        left[0,0,:,:] = (conductance * self.params['reversal']).to(self.device)
+        right[0,0,:,:] = conductance
         self.conv_left.weight.data = nn.Parameter(left.to(self.device), requires_grad=False)
         self.conv_right.weight.data = nn.Parameter(right.to(self.device), requires_grad=False)
 
