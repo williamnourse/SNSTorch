@@ -5,13 +5,16 @@ import torch.nn as nn
 import time
 c = 0.1
 k = (1-c)/c
+tauA = 50
+tauU = 5
+print(4/(tauA*tauA+tauU*tauU+2*tauU*tauA+3))
 params = nn.ParameterDict({
-            'tauU': nn.Parameter(torch.tensor(0.1/5.0)),
+            'tauU': nn.Parameter(torch.tensor(0.1/tauU)),
             'leakU': nn.Parameter(torch.tensor(1.0)),
             'restU': nn.Parameter(torch.tensor(0.0)),
             'biasU': nn.Parameter(torch.tensor(0.0)),
             'initU': nn.Parameter(torch.tensor(0.0)),
-            'tauA': nn.Parameter(torch.tensor(0.1/500.0)),
+            'tauA': nn.Parameter(torch.tensor(0.1/tauA)),
             'leakA': nn.Parameter(torch.tensor(1.0)),
             'restA': nn.Parameter(torch.tensor(0.0)),
             'gainA': nn.Parameter(torch.tensor(k)),
@@ -20,7 +23,7 @@ params = nn.ParameterDict({
 
 model = m.AdaptiveNonSpikingLayer(1, params=params)
 
-state = torch.zeros(10000)
+state = torch.zeros(2000)
 adapt = torch.zeros_like(state)
 x = torch.tensor(1.0)
 
