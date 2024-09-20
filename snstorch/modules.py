@@ -32,6 +32,39 @@ class NonSpikingLayer(nn.Module):
         #     state += self.params['tau']*x
         return state
 
+class AdaptiveNonSpikingLayer(nn.Module):
+    def __init__(self, size, params=None, generator=None, device=None, dtype=torch.float32,
+                 ):
+        super().__init__()
+        if device is None:
+            device = 'cpu'
+        self.params = nn.ParameterDict({
+            'tauU': nn.Parameter(0.5*torch.rand(size, dtype=dtype, generator=generator).to(device)),
+            'leakU': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device)),
+            'restU': nn.Parameter(torch.zeros(size, dtype=dtype).to(device)),
+            'biasU': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device)),
+            'initU': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device)),
+            'tauA': nn.Parameter(0.5*torch.rand(size, dtype=dtype, generator=generator).to(device)),
+            'leakA': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device)),
+            'restA': nn.Parameter(torch.zeros(size, dtype=dtype).to(device)),
+            'gainA': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device)),
+            'initA': nn.Parameter(torch.rand(size, dtype=dtype, generator=generator).to(device))
+        })
+        if params is not None:
+            self.params.update(params)
+
+    # @jit.script_method
+    def forward(self, x, state, adapt):
+        # if state is None:
+        #     state = self.params['init']
+        # with profiler.record_function("NEURAL UPDATE"):
+        state_new = state + self.params['tauU'] * (-self.params['leakU'] * (state - self.params['restU']) + self.params['biasU'] + x - self.params['gainA']*adapt)
+        adapt_new = adapt + self.params['tauA'] * (-self.params['leakA'] * (adapt - self.params['restA']) + state)
+            # state += new_state
+        # if x is not None:
+        #     state += self.params['tau']*x
+        return state_new, adapt_new
+
 
 class ClampActivation(nn.Module):
     def __init__(self):
