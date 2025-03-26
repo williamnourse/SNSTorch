@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/SNSTorch.iml" filepath="$PROJECT_DIR$/.idea/SNSTorch.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../v2e/.idea/v2e.iml" filepath="$PROJECT_DIR$/../v2e/.idea/v2e.iml" />
     </modules>
   </component>
 </project>
